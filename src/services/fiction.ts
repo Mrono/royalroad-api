@@ -199,7 +199,8 @@ class FictionParser {
                         $(el).find('td').eq(0).find('a').attr('href')?.split('/')[5] ?? '',
                         10,
                     ),
-                    release: date($(el).find('td').eq(1).find('time').text()).getTime(),
+                    release: parseInt($(el).find('td').eq(1).find('time').attr('unixtime')),
+                    ]
                 });
             });
 
