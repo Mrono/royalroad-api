@@ -2,7 +2,6 @@ import * as cheerio from 'cheerio';
 import { getLastPage } from '../utils.js';
 import { Requester } from '../requester.js';
 import { RoyalResponse } from '../responses.js';
-import date from 'date.js';
 import type { AnyNode } from 'domhandler';
 
 export interface Fiction {
@@ -199,7 +198,7 @@ class FictionParser {
                         $(el).find('td').eq(0).find('a').attr('href')?.split('/')[5] ?? '',
                         10,
                     ),
-                    release: date($(el).find('td').eq(1).find('time').text()).getTime(),
+                    release: parseInt($(el).find('td').eq(1).find('time').attr('unixtime') ?? '') * 1000,
                 });
             });
 
