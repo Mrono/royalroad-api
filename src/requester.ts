@@ -4,6 +4,13 @@ import { RoyalError } from './responses.js';
 import debug from 'debug';
 import { CookieJar } from 'tough-cookie';
 import got, { OptionsOfTextResponseBody } from 'got';
+import { chromium } from 'playwright-extra';
+// Note: Type casting might be necessary depending on your npm package resolution, 
+// but we treat it as an imported function/plugin instance here.
+import * as puppeteerExtraStealth from 'puppeteer-extra-plugin-stealth';
+
+// Apply the stealth plugin to playwright-extra's chromium module
+(chromium as any).use(puppeteerExtraStealth());
 
 interface InternalRequestOptions {
     fetchToken?: boolean;
@@ -12,7 +19,32 @@ interface InternalRequestOptions {
     successStatus?: number;
     ignoreCookies?: boolean;
 }
+export async function getPageContent(url: string): Promise<string> {
+    let browser;
+    try {
+        // 1. Launch the browser (must await this)
+        browser = await chromium.launch({ headless: true });
 
+        // 2. Create a new page
+        const page = await browser.newPage();
+
+        // 3. Navigate and wait for all network activity to settle, using the provided URL
+        await page.goto(url, { waitUntil: 'networkidle' });
+
+        // 4. Get the content
+        const content = await page.content();
+        return content;
+
+    } catch (error) {
+        console.error(`An error occurred while scraping ${url}:`, error);
+        throw error; // Re-throw the error so it can be caught by the calling function
+    } finally {
+        // 5. ALWAYS close the browser, regardless of success or failure
+        if (browser) {
+            await browser.close();
+        }
+    }
+}
 /**
  * Class passed to all Services for consistent cookies across requests.
  */
@@ -111,14 +143,15 @@ export class Requester {
         request.headers = Requester.headers;
 
         try {
-            const response = await got(request);
+            return await getPageContent(request.url);
+            // const response = await got(request);
 
-            this.debug(
-                '%o < %o (%o)',
-                request.method || 'GET',
-                response.statusCode,
-                response.statusMessage,
-            );
+            // this.debug(
+            //     '%o < %o (%o)',
+            //     request.method || 'GET',
+            //     response.statusCode,
+            //     response.statusMessage,
+            // );
 
             if (
                 response.statusCode !== (internalOptions.successStatus || 200) &&
