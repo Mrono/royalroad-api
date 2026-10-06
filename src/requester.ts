@@ -20,11 +20,11 @@ interface InternalRequestOptions {
 }
 async function getPageContent(url: string): Promise<string> {
     // 1. Connect to the external Playwright server (requires environment variable)
-    if (!process.env.playwright_server) {
+    if (!process.env.PLAYWRIGHT_SERVER) {
         throw new Error("FATAL: The PLAYWRIGHT_SERVER environment variable is not set.");
     }
     
-    const browser = await chromium.connect(process.env.playwright_server);
+    const browser = await chromium.connect(process.env.PLAYWRIGHT_SERVER);
 
     // 2. Create a new page instance
     const page = await browser.newPage();
