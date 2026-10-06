@@ -3,14 +3,13 @@ import * as cheerio from 'cheerio';
 import { RoyalError } from './responses.js';
 import debug from 'debug';
 import { CookieJar } from 'tough-cookie';
-import got, { OptionsOfTextResponseBody } from 'got';
 import { chromium } from 'playwright-extra';
 // Note: Type casting might be necessary depending on your npm package resolution, 
 // but we treat it as an imported function/plugin instance here.
-import * as puppeteerExtraStealth from 'puppeteer-extra-plugin-stealth';
+import puppeteerExtraStealth from 'puppeteer-extra-plugin-stealth';
 
 // Apply the stealth plugin to playwright-extra's chromium module
-(chromium as any).use(puppeteerExtraStealth());
+chromium.use(puppeteerExtraStealth());
 
 interface InternalRequestOptions {
     fetchToken?: boolean;
@@ -19,30 +18,27 @@ interface InternalRequestOptions {
     successStatus?: number;
     ignoreCookies?: boolean;
 }
-export async function getPageContent(url: string): Promise<string> {
-    let browser;
+async function getPageContent(url: string): Promise<string> {
+    // 1. Connect to the external Playwright server (requires environment variable)
+    if (!process.env.playwright_server) {
+        throw new Error("FATAL: The PLAYWRIGHT_SERVER environment variable is not set.");
+    }
+    
+    const browser = await chromium.connect(process.env.playwright_server);
+
+    // 2. Create a new page instance
+    const page = await browser.newPage();
+
     try {
-        // 1. Launch the browser (must await this)
-        browser = await chromium.launch({ headless: true });
-
-        // 2. Create a new page
-        const page = await browser.newPage();
-
-        // 3. Navigate and wait for all network activity to settle, using the provided URL
+        // 3. Navigate to the URL and wait until network activity is low
         await page.goto(url, { waitUntil: 'networkidle' });
 
-        // 4. Get the content
-        const content = await page.content();
-        return content;
-
-    } catch (error) {
-        console.error(`An error occurred while scraping ${url}:`, error);
-        throw error; // Re-throw the error so it can be caught by the calling function
+        // 4. Get the content of the entire page
+        const output: string = await page.content();
+        return output;
     } finally {
-        // 5. ALWAYS close the browser, regardless of success or failure
-        if (browser) {
-            await browser.close();
-        }
+        // CRITICAL: Ensure the browser connection is closed regardless of success or failure
+        await browser.close();
     }
 }
 /**
@@ -141,9 +137,10 @@ export class Requester {
 
         request.cookieJar = this.cookieJar;
         request.headers = Requester.headers;
+        let content;
 
         try {
-            return await getPageContent(request.url);
+            content = await getPageContent(request.url);
             // const response = await got(request);
 
             // this.debug(
@@ -153,19 +150,19 @@ export class Requester {
             //     response.statusMessage,
             // );
 
-            if (
-                response.statusCode !== (internalOptions.successStatus || 200) &&
-                !internalOptions.ignoreStatus
-            ) {
-                throw new RoyalError(`Request error: ${response.statusMessage}`);
-            }
+            // if (
+            //     response.statusCode !== (internalOptions.successStatus || 200) &&
+            //     !internalOptions.ignoreStatus
+            // ) {
+            //     throw new RoyalError(`Request error: ${response.statusMessage}`);
+            // }
 
-            const genericError = this.catchGenericError(response.body);
-            if (!internalOptions.ignoreParser && genericError !== null) {
-                throw new RoyalError(genericError);
-            }
+            // const genericError = this.catchGenericError(content);
+            // if (!internalOptions.ignoreParser && genericError !== null) {
+            //     throw new RoyalError(genericError);
+            // }
 
-            return response.body;
+            return content;
         } catch (error: unknown) {
             this.debug('request error %O', error);
             throw new RoyalError(error instanceof Error ? error.message : 'Unkown error');
