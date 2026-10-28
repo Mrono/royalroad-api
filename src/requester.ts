@@ -16,7 +16,17 @@ async function getPageContent(url: string): Promise<string> {
         throw new Error("FATAL: The PLAYWRIGHT_SERVER environment variable is not set.");
     }
     
-
+    const res = await fetch(`${process.env.PLAYWRIGHT_SERVER}/fetch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+            url, 
+            seed: 42
+        }),
+      });
+      if (!res.ok) {throw new Error(`browser service ${res.status}: ${await res.text()}`)};
+      const page = await res.json();
+      return page.html;
 }
 /**
  * Class passed to all Services for consistent cookies across requests.
