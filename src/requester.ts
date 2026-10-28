@@ -15,8 +15,9 @@ async function getPageContent(url: string): Promise<string> {
     if (!process.env.PLAYWRIGHT_SERVER) {
         throw new Error("FATAL: The PLAYWRIGHT_SERVER environment variable is not set.");
     }
+    const is_fiction = url.match(/^https:\/\/www\.royalroad\.com\/fiction\/(\d+)\/[A-za-z0-9-]+\/?$/i)
     
-    const res = await fetch(`${process.env.PLAYWRIGHT_SERVER}/fetch`, {
+    const res = await fetch(`${process.env.PLAYWRIGHT_SERVER}/${is_fiction ? 'fetch' : 'chapters'}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
