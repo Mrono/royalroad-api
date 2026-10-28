@@ -3,13 +3,6 @@ import * as cheerio from 'cheerio';
 import { RoyalError } from './responses.js';
 import debug from 'debug';
 import { CookieJar } from 'tough-cookie';
-import { chromium } from 'playwright-extra';
-// Note: Type casting might be necessary depending on your npm package resolution, 
-// but we treat it as an imported function/plugin instance here.
-import puppeteerExtraStealth from 'puppeteer-extra-plugin-stealth';
-
-// Apply the stealth plugin to playwright-extra's chromium module
-chromium.use(puppeteerExtraStealth());
 
 interface InternalRequestOptions {
     fetchToken?: boolean;
@@ -19,27 +12,11 @@ interface InternalRequestOptions {
     ignoreCookies?: boolean;
 }
 async function getPageContent(url: string): Promise<string> {
-    // 1. Connect to the external Playwright server (requires environment variable)
     if (!process.env.PLAYWRIGHT_SERVER) {
         throw new Error("FATAL: The PLAYWRIGHT_SERVER environment variable is not set.");
     }
     
-    const browser = await chromium.connect(process.env.PLAYWRIGHT_SERVER);
 
-    // 2. Create a new page instance
-    const page = await browser.newPage();
-
-    try {
-        // 3. Navigate to the URL and wait until network activity is low
-        await page.goto(url, { waitUntil: 'networkidle' });
-
-        // 4. Get the content of the entire page
-        const output: string = await page.content();
-        return output;
-    } finally {
-        // CRITICAL: Ensure the browser connection is closed regardless of success or failure
-        await browser.close();
-    }
 }
 /**
  * Class passed to all Services for consistent cookies across requests.
