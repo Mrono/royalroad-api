@@ -1,89 +1,29 @@
-import logger from 'debug';
 import * as cheerio from 'cheerio';
-import { getLastPage } from '../utils.js';
 import { Requester } from '../requester.js';
-import { RoyalError, RoyalResponse } from '../responses.js';
-import date from 'date.js';
+import { RoyalResponse } from '../responses.js';
 
-export interface NewChapter {
-    title: string;
+export interface ChapterNote {
+    /** Whether the note sits above ('top') or below ('bottom') the chapter text. */
+    position: 'top' | 'bottom';
     content: string;
-    preNote?: undefined | string;
-    postNote?: undefined | string;
 }
 
 export interface Chapter {
+    title: string;
+    /** Release time in milliseconds since the epoch, null if not found. */
+    release: number | null;
     content: string;
-    preNote: string;
-    postNote: string;
-
-    next: number;
-    previous: number;
-}
-
-export interface ChapterComment {
-    id: number;
-    posted: number;
-    content: string;
-
-    author: {
-        id: number;
-        name: string;
-        avatar: string;
-    };
+    notes: ChapterNote[];
 }
 
 /**
  * Methods related to chapters.
  */
 export class ChapterService {
-    /**
-     * Basic checks for a chapter object's validity.
-     *
-     * @param chapter
-     */
-    private static isValidNewChapter(chapter: NewChapter) {
-        // TODO: Pre and post author notes maxlength?
-        return chapter.content.length >= 500 && chapter.title.length <= 150;
-    }
-
-    public debug: logger.IDebugger;
-
     private readonly req: Requester;
 
     constructor(req: Requester) {
         this.req = req;
-        this.debug = logger('chapter');
-    }
-
-    /**
-     * Add a chapter to a given fiction.
-     *
-     * @param fictionID - ID of the fiction to publish a chapter for.
-     * @param chapter - Object describing the chapter.
-     */
-    public async publish(fictionID: number, chapter: NewChapter) {
-        this.requireAuth();
-
-        if (!ChapterService.isValidNewChapter(chapter)) {
-            throw new RoyalError('Invalid chapter');
-        }
-
-        await this.req.post(
-            `/fiction/chapter/new/${String(fictionID)}`,
-            {
-                Status: 'New',
-                fid: fictionID.toString(),
-                Title: chapter.title,
-                Content: chapter.content,
-                PreAuthorNotes: chapter.preNote || '',
-                PostAuthorNotes: chapter.postNote || '',
-                action: 'publish',
-            },
-            { fetchToken: true },
-        );
-
-        return new RoyalResponse(chapter);
     }
 
     /**
@@ -98,120 +38,69 @@ export class ChapterService {
 
         return new RoyalResponse(chapter);
     }
-
-    /**
-     * Return an array of comments for a given chapter.
-     *
-     * @param chapterID - ID of the chapter to get comments from.
-     * @param page - Either the page of comments to load, or 'last'.
-     */
-    public async getComments(chapterID: number, page: number | 'last' = 1) {
-        const path = `/fiction/chapter/${String(chapterID)}/comments/`;
-        const lastPage = page === 'last' ? getLastPage(await this.req.get(path)) : page;
-        const body = await this.req.get(path + lastPage);
-
-        const comments = ChapterParser.parseComments(body);
-
-        return new RoyalResponse(comments);
-    }
-
-    /**
-     * Post a comment for a given fiction.
-     *
-     * @param chapterID - ID of the chapter to post a comment to.
-     * @param content - Content to post, separate paragraphs with '\n'.
-     */
-    public async postComment(chapterID: number, content: string) {
-        this.requireAuth();
-
-        await this.req.post(
-            `/fiction/0/_/chapter/${String(chapterID)}/_`,
-            {
-                cid: chapterID.toString(),
-                action: 'submit',
-                comment: content
-                    .split('\n')
-                    .map((e) => `<p>${e}</p>`)
-                    .join(''),
-            },
-            { fetchToken: true, ignoreStatus: true },
-        );
-
-        return new RoyalResponse(null);
-    }
-
-    /**
-     * Throw if the requester doesn't have authentication.
-     */
-    private requireAuth() {
-        if (!this.req.isAuthenticated) {
-            throw new RoyalError('Not authenticated.');
-        }
-    }
 }
 
 class ChapterParser {
     public static parseChapter(html: string): Chapter {
         const $ = cheerio.load(html);
 
-        const notes = $('div.author-note');
-        const preNote = $(notes).eq(0).find('p').text();
-        const postNote = $(notes).eq(1).find('p').text();
+        const CONTENT = 'div.chapter-inner.chapter-content';
 
-        const content = ($('div.chapter-inner.chapter-content').html() || '').trim();
+        const content = ($(CONTENT).first().html() || '').trim();
 
-        const next = ChapterParser.getChapterID(
-            $('i.fa-chevron-double-right').parent().attr('href') || '',
-        );
+        // Walk the author notes, the chapter text and <time> elements in page
+        // order: anything before the text is at the top, anything after it at
+        // the bottom. The chapter's own date sits above the text; times below
+        // it belong to comments.
+        const notes: ChapterNote[] = [];
+        let release: number | null = null;
+        let afterContent = false;
 
-        const previous = ChapterParser.getChapterID(
-            $('i.fa-chevron-double-left').parent().attr('href') || '',
-        );
+        $(`${CONTENT}, div.author-note, time`).each((i, el) => {
+            const $el = $(el);
 
-        return { content, preNote, postNote, next, previous };
-    }
-
-    public static parseComments(html: string): ChapterComment[] {
-        const $ = cheerio.load(html);
-        const comments: ChapterComment[] = [];
-
-        $('div.media.media-v2').each((i, el) => {
-            const id = parseInt($(el).attr('id')?.split('-')[2] ?? '', 10);
-
-            const posted = date($(el).find('time').text() + ' ago').getTime();
-
-            let raw = '';
-            $(el)
-                .find('div.media-body')
-                .find('p')
-                .each((j, p) => {
-                    const text = $(p).text();
-
-                    if (text) {
-                        raw += text.trim() + '\n';
-                    }
+            if ($el.is(CONTENT)) {
+                afterContent = true;
+            } else if ($el.is('time')) {
+                if (!afterContent && release === null) {
+                    release = ChapterParser.parseTime($el.attr('unixtime'), $el.attr('datetime'));
+                }
+            } else {
+                notes.push({
+                    position: afterContent ? 'bottom' : 'top',
+                    content: ($el.html() || '').trim(),
                 });
-
-            const content = raw.trim();
-
-            const author = {
-                avatar: $(el).find('img').attr('src') ?? '',
-                name: $(el).find('span.name').find('a').text().split('@')[0],
-                id: parseInt(
-                    $(el).find('span.name').find('a').attr('href')?.split('/')[2] ?? '',
-                    10,
-                ),
-            };
-
-            comments.push({ id, author, posted, content });
+            }
         });
 
-        return comments;
+        const title =
+            $('div.fic-header').find('h1').first().text().trim() ||
+            ChapterParser.titleFromHead($('title').text());
+
+        return { title, release, content, notes };
     }
 
-    public static getChapterID(url: string): number {
-        const split = url.split('/');
+    /**
+     * Read a RR <time> element: unixtime is in seconds, datetime is ISO 8601.
+     */
+    private static parseTime(unixtime?: string, datetime?: string): number | null {
+        const seconds = parseInt(unixtime ?? '', 10);
+        if (!Number.isNaN(seconds)) {
+            return seconds * 1000;
+        }
 
-        return split.length < 5 ? -1 : parseInt(split[5], 10);
+        const parsed = Date.parse(datetime ?? '');
+
+        return Number.isNaN(parsed) ? null : parsed;
+    }
+
+    /**
+     * Fallback for the title: "<chapter> - <fiction> | Royal Road".
+     */
+    private static titleFromHead(head: string): string {
+        const withoutSite = head.replace(/\s*\|\s*Royal Road\s*$/i, '');
+        const split = withoutSite.lastIndexOf(' - ');
+
+        return (split === -1 ? withoutSite : withoutSite.slice(0, split)).trim();
     }
 }
