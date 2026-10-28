@@ -6,21 +6,22 @@ npm i -s @fsoc/royalroadl-api
 
 This is an attempt to write a predictable and consistent wrapper around the mess that is RR. Since no official public API is exposed, this module scrapes all data straight from the HTML, which makes it very prone to spontaneous and horrible death.
 
+This version is read-only: it loads fiction and chapter pages, and has no login, posting or other features that change anything on RR. Pages are loaded through an [invisible_playwright](https://github.com/feder-cr/invisible_playwright) browser service with `/fetch` and `/chapters` endpoints, whose address is read from the `PLAYWRIGHT_SERVER` environment variable (for example `PLAYWRIGHT_SERVER=http://localhost:8000`).
+
 Barebones documentation generated from [TypeDoc](http://typedoc.org/) can be found on [fs-c.github.io/royalroad-api/](https://fs-c.github.io/royalroad-api/). You can also build these docs yourself by running `npm run docs` in the root of the project.
 
 ## Example usage
-
-For more examples check out the `/examples` directory, see also the tests in `/test`.
 
 ```typescript
 import { RoyalRoadAPI } from '@fsoc/royalroadl-api';
 
 const api = new RoyalRoadAPI();
 
-const { data } = await api.fictions.getPopular();
-const titles = data.slice(10).map((fic) => fic.title);
+const { data: fiction } = await api.fiction.getFiction(21220);
+console.log(`${fiction.title} has ${fiction.chapters.length} chapters`);
 
-console.log(`The top 10 popular fictions are: ${titles.join(', ')}`);
+const { data: chapter } = await api.chapter.getChapter(fiction.chapters[0].id);
+console.log(chapter.title, new Date(chapter.release ?? 0), chapter.notes);
 ```
 
 ## About
@@ -78,23 +79,16 @@ RoyalError {
 
 ### Internal requester
 
-All service classes use the same instance of the `Requester`, the class responsible for making HTTP requests and returning their responses. By default, it will throw a `RoyalError` if it encounters a status code other than 200 (this can be disabled with the `ignoreStatus` option).
+All service classes use the same instance of the `Requester`, the class responsible for loading pages through the browser service. Fiction pages are loaded with the `/chapters` endpoint, which also returns the page's `window.chapters` array; that array is used for a fiction's chapter list instead of parsing the paginated chapter table.
 
-Since RR likes to return 200 even when the actual response should be a 404 or 304, the `Requester` will parse the HTML it has gotten (if it got any), and try to read an error from it. If it finds signs that the request has failed, it will throw - this can be disabled with the `ignoreParser` option.
-
-The `Requester`s main goal is to keep track of cookies and to automatically fetch a `__ResponseVerificationToken` often needed for POST requests as a part of anti CSRF measures. This fetching of tokens is disabled by default and can be enabled with the `fetchToken` option.
+Since RR likes to return 200 even when the actual response should be a 404, the `Requester` will parse the HTML it has gotten and try to read an error from it. If it finds signs that the request has failed, it will throw a `RoyalError`.
 
 ### Structure
 
 All services are structured in a very similar way: with a `<Type>Service` exposing all relevant methods, and a `<Type>Parser`, which usually exposes a number of static methods used to parse HTML responses.
 
-A quick wrap-up of all the existing services is:
-
--   `ChapterService`, contains methods for fetching and publishing chapters and chapter comments.
--   `FictionService`, fetching fiction data and reviews.
--   `FictionsService`, methods for fetching all types of fiction lists RRL offers, with their respective levels of per fiction detail.
--   `ProfileService`, handling profiles, returns parsed user profiles.
--   `UserService`, actions related to the logged-in user like logon, getting the users' fictions, bookmarks, or notifications.
+-   `FictionService`, `getFiction(id)` returns a fiction's title, image, status, warnings, description, author and chapters.
+-   `ChapterService`, `getChapter(id)` returns a chapter's title, release date, content and author notes, each note marked as `top` or `bottom` depending on where it sits relative to the chapter text.
 
 ### Parsing
 
@@ -108,6 +102,6 @@ PRs are welcome!
 
 ### Tests
 
-Can be run with `npm run test`, requires a `.env` file for RR account credentials, see `sample.env`.
+Can be run with `npm run test`, requires a `.env` file pointing `PLAYWRIGHT_SERVER` at a running browser service, see `sample.env`.
 
 When adding/fixing a feature please add/modify the tests.
