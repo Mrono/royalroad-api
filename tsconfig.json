@@ -5,12 +5,17 @@
         "target": "ES2022",
         "strict": true,
         "removeComments": true,
+        "rootDir": "./src",
         "noUnusedLocals": true,
         "outDir": "dist",
         "sourceMap": true,
         "allowSyntheticDefaultImports": true,
         "declaration": true
     },
-    "include": ["./src/**/*"],
-    "exclude": ["node_modules"]
+    "include": [
+        "./src/**/*"
+    ],
+    "exclude": [
+        "node_modules"
+    ]
 }
