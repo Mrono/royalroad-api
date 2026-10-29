@@ -21,7 +21,7 @@ const { data: fiction } = await api.fiction.getFiction(21220);
 console.log(`${fiction.title} has ${fiction.chapters.length} chapters`);
 
 const { data: chapter } = await api.chapter.getChapter(fiction.chapters[0].id);
-console.log(chapter.title, new Date(chapter.release ?? 0), chapter.notes);
+console.log(chapter.title, new Date(chapter.release ?? 0), chapter.preNote, chapter.postNote);
 ```
 
 ### Browser sessions
@@ -106,7 +106,7 @@ Since RR likes to return 200 even when the actual response should be a 404, the 
 All services are structured in a very similar way: with a `<Type>Service` exposing all relevant methods, and a `<Type>Parser`, which usually exposes a number of static methods used to parse HTML responses.
 
 -   `FictionService`, `getFiction(id)` returns a fiction's title, image, status, warnings, description, author and chapters.
--   `ChapterService`, `getChapter(id)` returns a chapter's title, release date, content and author notes, each note marked as `top` or `bottom` depending on where it sits relative to the chapter text.
+-   `ChapterService`, `getChapter(id)` returns a chapter's title, release date, content, `preNote` (the author note above the chapter text) and `postNote` (the one below it), each `''` if there is none.
 
 ### Parsing
 

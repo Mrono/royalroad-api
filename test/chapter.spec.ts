@@ -18,8 +18,7 @@ describe('chapter functionality', () => {
         assert(chapter.data.title.length > 0);
         assert(chapter.data.content.length > 0);
         assert(chapter.data.release !== null);
-        for (const note of chapter.data.notes) {
-            assert(note.position === 'top' || note.position === 'bottom');
-        }
+        assert.strictEqual(typeof chapter.data.preNote, 'string');
+        assert.strictEqual(typeof chapter.data.postNote, 'string');
     });
 });

@@ -2,18 +2,15 @@ import * as cheerio from 'cheerio';
 import { Requester } from '../requester.js';
 import { RoyalResponse } from '../responses.js';
 
-export interface ChapterNote {
-    /** Whether the note sits above ('top') or below ('bottom') the chapter text. */
-    position: 'top' | 'bottom';
-    content: string;
-}
-
 export interface Chapter {
     title: string;
     /** Release time in milliseconds since the epoch, null if not found. */
     release: number | null;
     content: string;
-    notes: ChapterNote[];
+    /** Author note above the chapter text (HTML), '' if none. */
+    preNote: string;
+    /** Author note below the chapter text (HTML), '' if none. */
+    postNote: string;
 }
 
 /**
@@ -49,10 +46,11 @@ class ChapterParser {
         const content = ($(CONTENT).first().html() || '').trim();
 
         // Walk the author notes, the chapter text and <time> elements in page
-        // order: anything before the text is at the top, anything after it at
-        // the bottom. The chapter's own date sits above the text; times below
-        // it belong to comments.
-        const notes: ChapterNote[] = [];
+        // order: a note before the text is the pre note, one after it the post
+        // note. The chapter's own date sits above the text; times below it
+        // belong to comments.
+        let preNote = '';
+        let postNote = '';
         let release: number | null = null;
         let afterContent = false;
 
@@ -66,10 +64,13 @@ class ChapterParser {
                     release = ChapterParser.parseTime($el.attr('unixtime'), $el.attr('datetime'));
                 }
             } else {
-                notes.push({
-                    position: afterContent ? 'bottom' : 'top',
-                    content: ($el.html() || '').trim(),
-                });
+                const note = ($el.html() || '').trim();
+
+                if (!afterContent && !preNote) {
+                    preNote = note;
+                } else if (afterContent && !postNote) {
+                    postNote = note;
+                }
             }
         });
 
@@ -77,7 +78,7 @@ class ChapterParser {
             $('div.fic-header').find('h1').first().text().trim() ||
             ChapterParser.titleFromHead($('title').text());
 
-        return { title, release, content, notes };
+        return { title, release, content, preNote, postNote };
     }
 
     /**
