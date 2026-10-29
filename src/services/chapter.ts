@@ -11,6 +11,10 @@ export interface Chapter {
     preNote: string;
     /** Author note below the chapter text (HTML), '' if none. */
     postNote: string;
+    /** ID of the next chapter, -1 if there is none. */
+    next: number;
+    /** ID of the previous chapter, -1 if there is none. */
+    previous: number;
 }
 
 /**
@@ -78,7 +82,24 @@ class ChapterParser {
             $('div.fic-header').find('h1').first().text().trim() ||
             ChapterParser.titleFromHead($('title').text());
 
-        return { title, release, content, preNote, postNote };
+        const next = ChapterParser.getChapterID(
+            $('i.fa-chevron-double-right').parent().attr('href') || '',
+        );
+
+        const previous = ChapterParser.getChapterID(
+            $('i.fa-chevron-double-left').parent().attr('href') || '',
+        );
+
+        return { title, release, content, preNote, postNote, next, previous };
+    }
+
+    /**
+     * Chapter ID from a link like /fiction/<id>/<slug>/chapter/<id>/<slug>.
+     */
+    private static getChapterID(url: string): number {
+        const match = url.match(/\/chapter\/(\d+)/);
+
+        return match ? parseInt(match[1], 10) : -1;
     }
 
     /**

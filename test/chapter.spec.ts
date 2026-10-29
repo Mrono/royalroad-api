@@ -20,5 +20,7 @@ describe('chapter functionality', () => {
         assert(chapter.data.release !== null);
         assert.strictEqual(typeof chapter.data.preNote, 'string');
         assert.strictEqual(typeof chapter.data.postNote, 'string');
+        assert(Number.isInteger(chapter.data.next));
+        assert(Number.isInteger(chapter.data.previous));
     });
 });

@@ -3,9 +3,11 @@ import { Requester, type RawChapter } from '../requester.js';
 import { RoyalError, RoyalResponse } from '../responses.js';
 
 export interface Fiction {
+    type: string;
     title: string;
     image: string;
     status: string;
+    tags: string[];
     warnings: string[];
     description: string;
     author: FictionAuthor;
@@ -63,7 +65,15 @@ class FictionParser {
 
         const title = $('div.fic-title').find('h1').text().trim();
         const image = $('div.fic-header').find('img').attr('src') ?? '';
-        const status = $('span.bg-blue-hoki').eq(1).text().trim();
+        const labels = $('span.bg-blue-hoki');
+
+        const type = labels.eq(0).text().trim();
+        const status = labels.eq(1).text().trim();
+
+        const tags = $('span.tags')
+            .find('a.label')
+            .map((i, el) => $(el).text().trim())
+            .get();
 
         const warnings = $('ul.list-inline')
             .find('li')
@@ -87,6 +97,6 @@ class FictionParser {
             release: Date.parse(chapter.date),
         }));
 
-        return { title, image, status, warnings, description, author, chapters };
+        return { type, title, image, status, tags, warnings, description, author, chapters };
     }
 }

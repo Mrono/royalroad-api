@@ -105,8 +105,8 @@ Since RR likes to return 200 even when the actual response should be a 404, the 
 
 All services are structured in a very similar way: with a `<Type>Service` exposing all relevant methods, and a `<Type>Parser`, which usually exposes a number of static methods used to parse HTML responses.
 
--   `FictionService`, `getFiction(id)` returns a fiction's title, image, status, warnings, description, author and chapters.
--   `ChapterService`, `getChapter(id)` returns a chapter's title, release date, content, `preNote` (the author note above the chapter text) and `postNote` (the one below it), each `''` if there is none.
+-   `FictionService`, `getFiction(id)` returns a fiction's type, title, image, status, tags, warnings, description, author and chapters.
+-   `ChapterService`, `getChapter(id)` returns a chapter's title, release date, content, `preNote` (the author note above the chapter text) and `postNote` (the one below it), each `''` if there is none, and the `next` and `previous` chapter IDs, `-1` if there is none.
 
 ### Parsing
 
