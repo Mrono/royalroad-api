@@ -24,6 +24,24 @@ const { data: chapter } = await api.chapter.getChapter(fiction.chapters[0].id);
 console.log(chapter.title, new Date(chapter.release ?? 0), chapter.notes);
 ```
 
+### Browser sessions
+
+By default every request launches a new browser, which takes several seconds. To reuse one browser (and its cookies) for many requests, wrap them in a session:
+
+```typescript
+await api.startSession();
+try {
+    const { data: fiction } = await api.fiction.getFiction(21220);
+    for (const { id } of fiction.chapters) {
+        const { data: chapter } = await api.chapter.getChapter(id);
+    }
+} finally {
+    await api.endSession();
+}
+```
+
+The browser service closes sessions that go unused for `SESSION_IDLE_SECONDS` (300 by default); if that happens mid-run, the next request starts a new session automatically.
+
 ## About
 
 The module itself exports only a `RoyalRoadAPI` class which, by itself, has no methods. All functionality is delegated to service classes which are properties of the `RoyalRoadAPI` instance.
